@@ -1,0 +1,16 @@
+{
+  "manifest_version": 2,
+  "name": "cryptweet",
+  "description": "Easily encrypt messages",
+  "version": "1.0",
+  "icons": {
+    "48": "icons/cryptweet-48.png",
+    "32": "icons/cryptweet-32.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://twitter.com/*"],
+      "js": ["build/twitter.js"]
+    }
+  ]
+}

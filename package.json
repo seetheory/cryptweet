@@ -1,0 +1,23 @@
+{
+  "name": "cryptweet",
+  "version": "1.0.0",
+  "description": "",
+  "main": "button_handler.js",
+  "scripts": {
+    "build": "webpack",
+    "watch": "webpack --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "axios": "^0.19.2",
+    "openpgp": "^4.10.1",
+    "secp256k1": "^4.0.0",
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "webpack-cli": "^3.3.11",
+    "webpack": "^4.42.0"
+  },
+  "author": "seetheory",
+  "license": "MIT"
+}
