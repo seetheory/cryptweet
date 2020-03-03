@@ -11,8 +11,10 @@
   "dependencies": {
     "axios": "^0.19.2",
     "openpgp": "^4.10.1",
+    "puppeteer": "^2.1.1",
     "secp256k1": "^4.0.0",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "uuid": "^7.0.1"
   },
   "devDependencies": {
     "webpack-cli": "^3.3.11",

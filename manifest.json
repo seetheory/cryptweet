@@ -7,6 +7,10 @@
     "48": "icons/cryptweet-48.png",
     "32": "icons/cryptweet-32.png"
   },
+  "permissions": [
+    "https://twitter.com/*",
+    "https://server.cryptweet.now.sh/*"
+  ],
   "content_scripts": [
     {
       "matches": ["https://twitter.com/*"],
