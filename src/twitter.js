@@ -2,6 +2,7 @@ const nacl = require('tweetnacl')
 const secp256k1 = require('secp256k1')
 const axios = require('axios')
 const uuid = require('uuid')
+const generate = require('nanoid/generate')
 
 const key1 = {
   privateKey: '99d6a84550b53c5b4c57907e038578497cfb274afc1bb51cca6f32e45f311c7e',
@@ -78,58 +79,117 @@ function setCurrentTweet(text) {
   editor.innerText = text
 }
 
-function addButton() {
-  const [ toolbar ] = document.querySelectorAll('[data-testid="toolBar"]')
-  if (!toolbar) return
+function addButton(element) {
   const button = document.createElement('div')
+  button.setAttribute('class', 'cryptweet_encrypt_button')
   button.setAttribute('style', `
     background-color: green;
-    display: flex;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    height: 39px;
+    min-width: 62.8px;
     color: white;
+    display: flex;
+    border-radius: 9999px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
   `)
-  button.addEventListener('click', async () => {
-    const tweet = editorElement().innerText
-    // garbage regex, TODO: refactor
-    const handleRegex = /@[a-zA-Z0-9.]+/g
-    const mention = tweet.match(handleRegex)
-    if (mention.length === 0) return
-    const user = mention[0]
-    console.log(user)
-    try {
-      const publicKey = await loadPublicKey(user)
-      const msg = encrypt(tweet, key1.privateKey, publicKey.replace('0x', ''))
-      const hexmsg = Buffer.from(msg).toString('hex')
-      const enc = document.getElementById('enc_editor')
-      const prefix = '<'
-      const suffix = '>'
-      const fullMessage = `${user} ${hexmsg}`
-      const chunks = []
-      const chunkLength = 280
-      let i = 0
-      let chunkIndex = 0
-      console.log(hexmsg)
-      for (;;) {
-        if (i > hexmsg.length) break
-        if (i === 0) {
-          // add the user handle
-          const str = `${user} ${hexmsg.length} ${chunkIndex}${prefix}`
-          i = chunkLength - str.length - suffix.length
-          chunks.push(str+hexmsg.slice(0, i)+suffix)
-          chunkIndex++
-          continue
-        }
-        const newI = i + chunkLength - suffix.length - prefix.length - chunkIndex.toString().length
-        chunks.push(chunkIndex.toString() + prefix + hexmsg.slice(i, newI) + suffix)
-        i = newI
+  const textContainer = document.createElement('div')
+  textContainer.setAttribute('style', `
+    display: flex;
+    margin: 4px;
+  `)
+  textContainer.innerText = 'Crypt'
+  button.appendChild(textContainer)
+  element.appendChild(button)
+  button.addEventListener('click', cryptweet)
+}
+
+async function cryptweet() {
+  const enc = document.getElementById('enc_editor')
+  while (enc.lastChild) enc.lastChild.remove()
+  const tweet = editorElement().innerText
+  // garbage regex, TODO: refactor
+  const handleRegex = /@[a-zA-Z0-9.]+/g
+  const mention = tweet.match(handleRegex)
+  if (mention.length === 0) return
+  const user = mention[0]
+  try {
+    const publicKey = await loadPublicKey(user)
+    const msg = encrypt(tweet, key1.privateKey, publicKey.replace('0x', ''))
+    const hexmsg = Buffer.from(msg).toString('hex')
+    const prefix = '<'
+    const suffix = '>'
+    const chunks = []
+    const chunkLength = 280
+    let i = 0
+    let chunkIndex = 0
+    // the id prefix will store the total chunks
+    const id = '0000' + generate('abcdefghijklmnopqrstuvwxyz', 10)
+    // Best way to chunk a binary message in tweets with the intent of
+    // traversing the dom to retrieve (e.g. regex/keywords)
+    for (;;) {
+      if (i >= hexmsg.length) break
+      if (i === 0) {
+        // add the user handle
+        const str = `${user} ${id}${prefix}`
+        i = chunkLength - str.length - suffix.length
+        chunks.push(
+          str + hexmsg.slice(0, i) + suffix
+        )
         chunkIndex++
+        continue
       }
-      enc.innerHTML = chunks.join('<br /><br />')
-    } catch (err) {
-      console.log(err)
+      const newI = i + chunkLength - suffix.length - prefix.length - id.length
+      chunks.push(
+        id + prefix + hexmsg.slice(i, newI) + suffix
+      )
+      i = newI
+      chunkIndex++
     }
-  })
-  button.innerText = 'Encrypt'
-  toolbar.appendChild(button)
+    const final = chunks.map((chunk, index) => {
+      return chunk.replace('0000', `${index < 10 ? '0' : ''}${index}${chunks.length < 10 ? '0' : ''}${chunks.length}`)
+    })
+    for (const chunk of final) {
+      const chunkContainer = document.createElement('div')
+      chunkContainer.setAttribute('style', `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      `)
+      const chunkText = document.createElement('textarea')
+      chunkText.setAttribute('style', `
+        padding: 2px;
+        max-width: 230px;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+      `)
+      chunkText.value = chunk
+      const copyButton = document.createElement('div')
+      copyButton.setAttribute('style', `
+        min-height: 20px;
+        background-color: black;
+        color: white;
+        border-radius: 4px;
+        padding: 2px;
+        cursor: pointer;
+      `)
+      copyButton.addEventListener('click', () => {
+        chunkText.select()
+        document.execCommand('copy')
+        copyButton.innerText = 'copied!'
+      })
+      copyButton.innerText = 'copy'
+      chunkContainer.appendChild(chunkText)
+      chunkContainer.appendChild(copyButton)
+      enc.appendChild(chunkContainer)
+    }
+  } catch (err) {
+    console.log(err)
+  }
 }
 
 if (!document.getElementById('enc_editor')) {
@@ -143,19 +203,23 @@ if (!document.getElementById('enc_editor')) {
     min-width: 50px;
     max-width: 250px;
     background-color: white;
-    word-wrap: break-word;
-    white-space: pre-wrap;
   `)
   document.body.appendChild(enc)
 }
 
-;(async () => {
-  try {
-    addButton()
-    // const _key1 = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
-    // console.log(_key1)
-    // console.log(await loadPublicKey('wehaveanstd'))
-  } catch (err) {
-    console.log(err)
-  }
-})()
+setInterval(() => {
+  addButtons()
+}, 2000)
+
+function addButtons() {
+  const editFields = document.querySelectorAll('[data-testid="toolBar"]')
+  if (editFields.length === 0) return
+  (() => {
+    for (const field of editFields) {
+      for (const child of field.children) {
+        if (child.className === 'cryptweet_encrypt_button') return
+      }
+      addButton(field)
+    }
+  })()
+}

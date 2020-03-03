@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "axios": "^0.19.2",
+    "nanoid": "^2.1.11",
     "openpgp": "^4.10.1",
     "puppeteer": "^2.1.1",
     "secp256k1": "^4.0.0",
