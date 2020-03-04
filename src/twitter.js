@@ -120,7 +120,7 @@ async function cryptweet() {
       if (i >= hexmsg.length) break
       if (i === 0) {
         // add the user handle
-        const str = `${user} ${id}${prefix}`
+        const str = `${user} ${publicKey}${id}${prefix}`
         i = chunkLength - str.length - suffix.length
         chunks.push(
           str + hexmsg.slice(0, i) + suffix
@@ -299,15 +299,15 @@ setInterval(() => {
  **/
 setInterval(() => {
   const composeElements = document.getElementsByClassName('public-DraftEditor-content')
-  const chunkRegex = /(\d\d)(\d\d)([a-z]{10})<([0-9a-fA-F]+)>/g
+  const chunkRegex = /(0x[0-9a-fA-F]{66})?(\d\d)(\d\d)([a-z]{10})<([0-9a-fA-F]+)>/g
   let match = chunkRegex.exec(document.body.innerText)
   const chunksById = {}
   while (match !== null) {
-    const [ full, index, total, id, data ] = match
+    const [ full, publicKey, index, total, id, data ] = match
     if (!chunksById[id]) {
       chunksById[id] = []
     }
-    chunksById[id].push({ index, total, id, data, full })
+    chunksById[id].push({ publicKey, index, total, id, data, full })
     match = chunkRegex.exec(document.body.innerText)
   }
   for (const id of Object.keys(chunksById)) {
@@ -316,7 +316,7 @@ setInterval(() => {
     chunks.sort((a, b) => a.index - b.index)
     const fullData = chunks.map(c => c.data).join('').replace('<', '').replace('>', '')
     const data = Buffer.from(fullData, 'hex').toString('utf8')
-    const publicKey = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
+    const publicKey = chunks[0].publicKey
     const decrypted = decrypt(data, activePrivateKey, publicKey)
     if (!decrypted) continue
     const text = Buffer.from(decrypted).toString()
