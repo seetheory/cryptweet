@@ -3,6 +3,7 @@ const secp256k1 = require('secp256k1')
 const axios = require('axios')
 const generate = require('nanoid/generate')
 const Web3 = require('web3')
+const hash = require('hash.js')
 
 const key1 = {
   privateKey: '99d6a84550b53c5b4c57907e038578497cfb274afc1bb51cca6f32e45f311c7e',
@@ -16,15 +17,20 @@ const key2 = {
 
  // * Example encryption
 function test() {
-  const publicKey1 = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
-  const publicKey2 = fromBytes(secp256k1.publicKeyCreate(toBytes(key2.privateKey)))
-  console.log(publicKey1, publicKey2)
-  const message = 'hello'
-  const enc = encrypt(message, key1.privateKey, publicKey2)
-  console.log(enc)
-  const dec = decrypt(enc, key2.privateKey, publicKey1)
-  console.log(Buffer.from(dec).toString())
+  try {
+    const publicKey1 = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
+    const publicKey2 = fromBytes(secp256k1.publicKeyCreate(toBytes(key2.privateKey)))
+    console.log(publicKey1, publicKey2)
+    const message = 'hello'
+    const enc = encrypt(message, key1.privateKey, publicKey2)
+    console.log(enc)
+    const dec = decrypt(enc, key2.privateKey, publicKey1)
+    console.log('message:', Buffer.from(dec).toString())
+  } catch (err) {
+    console.log('Error testing:', err)
+  }
 }
+// setTimeout(test, 2000)
 
 /**
  * Uint8Array <-> hex helpers
@@ -40,38 +46,39 @@ const fromBytes = (bytes, base = 16) =>
 /**
  * Encrypt, decrypt, shared secret
  **/
-{
-  function encrypt(message, privateKey, publicKey) {
-    const secret = sharedSecret(privateKey, publicKey)
-    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength)
-    // nacl.secretbox.keyLength = secret.length
-    const box = nacl.secretbox(toBytes(Buffer.from(message).toString('hex')), nonce, toBytes(secret).slice(1))
-    return JSON.stringify({
-      m: fromBytes(box),
-      n: fromBytes(nonce)
-    })
-  }
+function encrypt(message, privateKey, publicKey) {
+  const secret = toBytes(sharedSecret(privateKey, publicKey)).slice(0, nacl.secretbox.keyLength)
+  // console.log('encrypt secret:', fromBytes(secret))
+  const nonce = nacl.randomBytes(nacl.secretbox.nonceLength)
+  // nacl.secretbox.keyLength = secret.length
+  const box = nacl.secretbox(toBytes(Buffer.from(message).toString('hex')), nonce, secret)
+  return JSON.stringify({
+    m: fromBytes(box),
+    n: fromBytes(nonce)
+  })
+}
 
-  function decrypt(boxJson, privateKey, publicKey) {
-    const secret = sharedSecret(privateKey, publicKey)
-    const box = JSON.parse(boxJson)
-    return nacl.secretbox.open(toBytes(box.m), toBytes(box.n), toBytes(secret).slice(1))
-  }
+function decrypt(boxJson, privateKey, publicKey) {
+  const secret = toBytes(sharedSecret(privateKey, publicKey)).slice(0, nacl.secretbox.keyLength)
+  // console.log('decrypt secret:', fromBytes(secret))
+  const box = JSON.parse(boxJson)
+  return nacl.secretbox.open(toBytes(box.m), toBytes(box.n), secret)
+}
 
-  function sharedSecret(privateKey, publicKey) {
-    const hashfn = (x, y) => {
-      const pubKey = new Uint8Array(33)
-      pubKey[0] = (y[31] & 1) === 0 ? 0x02 : 0x03
-      pubKey.set(x, 1)
-      return pubKey
-    }
-    const privateBytes = toBytes(privateKey)
-    const publicBytes = typeof publicKey === 'string' ?
-      toBytes(publicKey.replace('0x', '')) :
-      publicKey
-    const secret = secp256k1.ecdh(publicBytes, privateBytes, { hashfn }, Buffer.alloc(33)).toString('hex')
-    return secret
+function sharedSecret(privateKey, publicKey) {
+  const hashfn = (x, y) => {
+    const pubKey = new Uint8Array(33)
+    pubKey[0] = (y[31] & 1) === 0 ? 0x02 : 0x03
+    pubKey.set(x, 1)
+    return pubKey
   }
+  const privateBytes = toBytes(privateKey)
+  const publicBytes = typeof publicKey === 'string' ?
+    toBytes(publicKey.replace('0x', '')) :
+    publicKey
+  const secret = secp256k1.ecdh(publicBytes, privateBytes, { hashfn }, Buffer.alloc(33)).toString('hex')
+  const hashedSecret = hash.sha256().update(secret).digest('hex')
+  return hashedSecret
 }
 
 async function loadPublicKey(handle) {
