@@ -162,20 +162,26 @@ async function cryptweet() {
         min-height: 20px;
         background-color: black;
         color: white;
-        border-radius: 4px;
         padding: 2px;
-        cursor: pointer;
+        margin: 4px;
+        border-radius: 9999px;
+        padding: 8px;
+        ${buttonStyle}
       `)
       copyButton.addEventListener('click', () => {
         chunkText.select()
         document.execCommand('copy')
-        copyButton.innerText = 'copied!'
+        copyButton.innerText = 'Copied!'
+        if (final.indexOf(chunk) === final.length - 1) {
+          minimize()
+        }
       })
-      copyButton.innerText = 'copy'
+      copyButton.innerText = 'Copy'
       chunkContainer.appendChild(chunkText)
       chunkContainer.appendChild(copyButton)
       enc.appendChild(chunkContainer)
     }
+    unminimize()
   } catch (err) {
     console.log(err)
   }
@@ -196,7 +202,6 @@ function createKey() {
   createSidebar()
 }
 
-let sidebarMinimized = false
 const editorStyle = `
   position: fixed;
   right: 0px;
@@ -213,11 +218,52 @@ const editorStyle = `
   border: 1px solid black;
 `
 
+const min_id = 'min_enc_editor'
+const editor_id = 'enc_editor'
+
+function minimize() {
+  let editor = document.getElementById(editor_id)
+  if (!editor) {
+    createSidebar()
+    minimize()
+  } else {
+    editor.style.visibility = 'hidden'
+  }
+  let minEditor = document.getElementById(min_id)
+  if (!minEditor) {
+    _createMinSidebar()
+  } else {
+    minEditor.style.visibility = 'visible'
+  }
+}
+
+function unminimize() {
+  let minEditor = document.getElementById(min_id)
+  if (!minEditor) {
+    _createMinSidebar()
+    unminimize()
+  } else {
+    minEditor.style.visibility = 'hidden'
+  }
+  let editor = document.getElementById(editor_id)
+  if (!editor) {
+    createSidebar()
+  } else {
+    editor.style.visibility = 'visible'
+  }
+}
+
 function _createMinSidebar() {
-  const enc = document.createElement('div')
-  enc.setAttribute('id', 'enc_editor')
+  // Remove element if it exists
+  let enc = document.getElementById(min_id)
+  if (enc) {
+    enc.remove()
+  }
+  enc = document.createElement('div')
+  enc.setAttribute('id', min_id)
   enc.setAttribute('style', `
     ${editorStyle}
+    cursor: pointer;
   `)
   const titleSpan = document.createElement('span')
   titleSpan.innerText = 'cryptweet'
@@ -227,22 +273,18 @@ function _createMinSidebar() {
     color: black;
     font-size: 25px;
   `)
-  enc.addEventListener('click', () => {
-    sidebarMinimized = false
-    createSidebar()
-  })
   enc.appendChild(titleSpan)
   document.body.appendChild(enc)
+  enc.addEventListener('click', () => {
+    unminimize()
+  })
 }
 
 function createSidebar() {
-  const editor = document.getElementById('enc_editor')
-  if (editor) editor.remove()
-  if (sidebarMinimized) {
-    return _createMinSidebar()
-  }
-  const enc = document.createElement('div')
-  enc.setAttribute('id', 'enc_editor')
+  let enc = document.getElementById(editor_id)
+  if (enc) enc.remove()
+  enc = document.createElement('div')
+  enc.setAttribute('id', editor_id)
   enc.setAttribute('style', `
     ${editorStyle}
   `)
@@ -263,8 +305,7 @@ function createSidebar() {
     line-height: 30px;
   `)
   mButton.addEventListener('click', () => {
-    sidebarMinimized = true
-    createSidebar()
+    minimize()
   })
   mButton.innerText = 'm'
   enc.appendChild(mButton)
@@ -298,7 +339,6 @@ function createSidebar() {
   `)
   saveKeyButton.addEventListener('click', () => {
     const wallet = new ethers.Wallet(activePrivateKey)
-    console.log(wallet)
     const el = document.createElement('a')
     el.setAttribute('href', `data:text/plain;charset=utf-8,${encodeURIComponent(wallet.privateKey)}`)
     el.setAttribute('download', 'cryptweet_private_key.txt')
