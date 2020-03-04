@@ -390,7 +390,6 @@ setInterval(() => {
  * Every 2 seconds look for messages to decrypt
  **/
 setInterval(() => {
-  const composeElements = document.getElementsByClassName('public-DraftEditor-content')
   const chunkRegex = /(0x[0-9a-fA-F]{66})?(\d\d)(\d\d)([a-z]{10})<([0-9a-fA-F]+)>/g
   let match = chunkRegex.exec(document.body.innerText)
   const chunksById = {}
@@ -412,17 +411,25 @@ setInterval(() => {
     const decrypted = decrypt(data, activePrivateKey, publicKey)
     if (!decrypted) continue
     const text = Buffer.from(decrypted).toString()
-    const xpath = `//span[contains(text(), '${chunks[0].data}')]`
-    const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue
-    let editing = false
-    for (const e of composeElements) {
-      if (e.contains(element)) editing = true
+    replaceChunk(chunks[0].full, ` ${text}`)
+    for (let j = 1; j < chunks.length; j++) {
+      replaceChunk(chunks[j].full, `--decrypted--`)
     }
-    // don't modify if composing a tweet
-    if (editing) continue
-    element.innerText = ` DECRYPTED:` + element.innerText.replace(chunks[0].full, text)
   }
 }, 2000)
+
+function replaceChunk(id, text) {
+  const composeElements = document.getElementsByClassName('public-DraftEditor-content')
+  const xpath = `//span[contains(text(), '${id}')]`
+  const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue
+  let editing = false
+  for (const e of composeElements) {
+    if (e.contains(element)) editing = true
+  }
+  // don't modify if composing a tweet
+  if (editing) return
+  element.innerText = text
+}
 
 function addButtons() {
   const editFields = document.querySelectorAll('[data-testid="toolBar"]')
