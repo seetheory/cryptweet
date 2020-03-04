@@ -15,6 +15,14 @@ const key2 = {
   address: '0x30c649cDAa9E6E84E2829764a0dE83c0F92D7235',
 }
 
+const buttonStyle = `
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: white;
+  cursor: pointer;
+`
+
  // * Example encryption
 function test() {
   try {
@@ -91,15 +99,12 @@ function editorElement() {
   return editor
 }
 
-function setCurrentTweet(text) {
-  const [ editor ] = document.getElementsByClassName('public-DraftEditor-content')
-  if (!editor) return
-  editor.innerText = text
-}
-
 async function cryptweet() {
   const enc = document.getElementById('enc_editor')
-  while (enc.lastChild) enc.lastChild.remove()
+  const children = enc.children
+  for (const child of children) {
+    if (child.className === 'chunk') child.remove()
+  }
   const tweet = editorElement().innerText
   // garbage regex, TODO: refactor
   const handleRegex = /@[a-zA-Z0-9.]+/g
@@ -148,12 +153,14 @@ async function cryptweet() {
     })
     for (const chunk of final) {
       const chunkContainer = document.createElement('div')
+      chunkContainer.setAttribute('class', 'chunk')
       chunkContainer.setAttribute('style', `
         display: flex;
         flex-direction: column;
         align-items: center;
       `)
       const chunkText = document.createElement('textarea')
+      chunkText.setAttribute('readonly', 'true')
       chunkText.setAttribute('style', `
         padding: 2px;
         max-width: 230px;
@@ -191,26 +198,47 @@ if (!document.getElementById('enc_editor')) {
   enc.setAttribute('style', `
     position: fixed;
     right: 0px;
-    top: 30px;
+    top: 0px;
     min-height: 50px;
-    min-width: 100px;
-    max-width: 250px;
+    width: 250px;
     background-color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 2px;
   `)
   document.body.appendChild(enc)
+  const buttonContainer = document.createElement('div')
+  buttonContainer.setAttribute('style', `
+    display: flex;
+  `)
   const publicKeyButton = document.createElement('div')
   publicKeyButton.setAttribute('style', `
-    position: fixed;
-    right: 0px;
-    top: 0px;
     height: 30px;
+    line-height: 30px;
     background-color: purple;
+    ${buttonStyle}
+    text-align: center;
+    border-radius: 9999px;
+    padding-left: 8px;
+    padding-right: 8px;
   `)
   publicKeyButton.addEventListener('click', () => {
     console.log(window.ethereum)
   })
   publicKeyButton.innerText = 'Copy My Key'
-  document.body.appendChild(publicKeyButton)
+  buttonContainer.appendChild(publicKeyButton)
+  const titleSpan = document.createElement('span')
+  titleSpan.innerText = 'cryptweet'
+  titleSpan.setAttribute('style', `
+    ${buttonStyle}
+    margin-bottom: 10px;
+    color: black;
+    font-size: 25px;
+  `)
+  enc.appendChild(titleSpan)
+  enc.appendChild(buttonContainer)
 }
 
 /**
@@ -221,7 +249,7 @@ setInterval(() => {
 }, 2000)
 
 /**
- * Every 5 seconds look for messages to decrypt
+ * Every 2 seconds look for messages to decrypt
  **/
 setInterval(() => {
   const composeElements = document.getElementsByClassName('public-DraftEditor-content')
@@ -254,7 +282,7 @@ setInterval(() => {
     }
     // don't modify if composing a tweet
     if (editing) continue
-    element.innerText = ` DECRYPTED: ` + element.innerText.replace(chunks[0].full, text)
+    element.innerText = ` DECRYPTED:` + element.innerText.replace(chunks[0].full, text)
   }
 }, 2000)
 
@@ -276,23 +304,21 @@ function addButton(element) {
   button.setAttribute('class', 'cryptweet_encrypt_button')
   button.setAttribute('style', `
     background-color: green;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
-    font-weight: 700;
-    font-size: 15px;
     height: 39px;
     min-width: 62.8px;
-    color: white;
     display: flex;
     border-radius: 9999px;
-    cursor: pointer;
     align-items: center;
     justify-content: center;
     margin-top: 10px;
+    ${buttonStyle}
   `)
   const textContainer = document.createElement('div')
   textContainer.setAttribute('style', `
     display: flex;
     margin: 4px;
+    padding-left: 10px;
+    padding-right: 10px;
   `)
   textContainer.innerText = 'Crypt'
   button.appendChild(textContainer)
