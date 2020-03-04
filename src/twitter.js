@@ -196,25 +196,78 @@ function createKey() {
   createSidebar()
 }
 
-function createSidebar() {
-  const editor = document.getElementById('enc_editor')
-  if (editor) editor.remove()
+let sidebarMinimized = false
+const editorStyle = `
+  position: fixed;
+  right: 0px;
+  bottom: 0px;
+  min-height: 50px;
+  width: 250px;
+  background-color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 2px;
+  cursor: pointer;
+  border: 1px solid black;
+`
+
+function _createMinSidebar() {
   const enc = document.createElement('div')
   enc.setAttribute('id', 'enc_editor')
   enc.setAttribute('style', `
-    position: fixed;
-    right: 0px;
-    bottom: 0px;
-    min-height: 50px;
-    width: 250px;
-    background-color: white;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: center;
-    padding: 2px;
+    ${editorStyle}
+  `)
+  const titleSpan = document.createElement('span')
+  titleSpan.innerText = 'cryptweet'
+  titleSpan.setAttribute('style', `
+    ${buttonStyle}
+    margin-bottom: 10px;
+    color: black;
+    font-size: 25px;
+  `)
+  enc.addEventListener('click', () => {
+    sidebarMinimized = false
+    createSidebar()
+  })
+  enc.appendChild(titleSpan)
+  document.body.appendChild(enc)
+}
+
+function createSidebar() {
+  const editor = document.getElementById('enc_editor')
+  if (editor) editor.remove()
+  if (sidebarMinimized) {
+    return _createMinSidebar()
+  }
+  const enc = document.createElement('div')
+  enc.setAttribute('id', 'enc_editor')
+  enc.setAttribute('style', `
+    ${editorStyle}
   `)
   document.body.appendChild(enc)
+  const mButton = document.createElement('div')
+  mButton.setAttribute('style', `
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
+    font-weight: 700;
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    cursor: pointer;
+    font-size: 25px;
+    border: 1px solid black;
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    line-height: 30px;
+  `)
+  mButton.addEventListener('click', () => {
+    sidebarMinimized = true
+    createSidebar()
+  })
+  mButton.innerText = 'm'
+  enc.appendChild(mButton)
   const publicKeyDiv = document.createElement('div')
   publicKeyDiv.setAttribute('style', `
     ${buttonStyle}
@@ -224,9 +277,7 @@ function createSidebar() {
     white-space: pre-wrap;
     max-width: 100%;
   `)
-  const currentPublicKey = activePrivateKey ?
-    activePublicKey() :
-    'No public key, create or load an identity'
+  const currentPublicKey = activePublicKey() || 'No public key, create or load an identity'
   publicKeyDiv.innerText = currentPublicKey
   const buttonContainer = document.createElement('div')
   buttonContainer.setAttribute('style', `
@@ -257,6 +308,39 @@ function createSidebar() {
     el.remove()
   })
   saveKeyButton.innerText = 'Save Key'
+  const loadKeyButton = document.createElement('div')
+  loadKeyButton.setAttribute('style', `
+    height: 30px;
+    line-height: 30px;
+    background-color: blue;
+    ${buttonStyle}
+    text-align: center;
+    border-radius: 9999px;
+    padding-left: 8px;
+    padding-right: 8px;
+    margin-right: 4px;
+    margin-left: 4px;
+  `)
+  loadKeyButton.innerText = 'Load Key'
+  loadKeyButton.addEventListener('click', () => {
+    const ul = document.createElement('input')
+    ul.setAttribute('type', 'file')
+    ul.style.display = 'none'
+    document.body.appendChild(ul)
+    ul.addEventListener('change', async () => {
+      if (ul.files.length !== 1) return
+      const privateKey = (await ul.files[0].text()).replace('0x', '')
+      console.log('test0')
+      console.log(privateKey)
+      if (!secp256k1.privateKeyVerify(toBytes(privateKey))) return alert('Invalid private key selected')
+      console.log('test1')
+      activePrivateKey = privateKey
+      window.localStorage.setItem('cryptweet_private_key', activePrivateKey)
+      createSidebar()
+    })
+    ul.click()
+    ul.remove()
+  })
   const newKeyButton = document.createElement('div')
   newKeyButton.setAttribute('style', `
     height: 30px;
@@ -274,6 +358,7 @@ function createSidebar() {
   newKeyButton.addEventListener('click', createKey)
   buttonContainer.appendChild(newKeyButton)
   buttonContainer.appendChild(saveKeyButton)
+  buttonContainer.appendChild(loadKeyButton)
   const titleSpan = document.createElement('span')
   titleSpan.innerText = 'cryptweet'
   titleSpan.setAttribute('style', `
@@ -286,7 +371,13 @@ function createSidebar() {
   enc.appendChild(publicKeyDiv)
   enc.appendChild(buttonContainer)
 }
-setTimeout(createSidebar, 200)
+setTimeout(() => {
+  try {
+    createSidebar()
+  } catch (err) {
+    console.log('Error', err)
+  }
+}, 200)
 
 /**
  * Every 2 seconds add buttons if needed
