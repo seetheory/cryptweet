@@ -15,6 +15,13 @@ const key2 = {
   address: '0x30c649cDAa9E6E84E2829764a0dE83c0F92D7235',
 }
 
+// window.localStorage.removeItem('cryptweet_private_key')
+let activePrivateKey = window.localStorage.getItem('cryptweet_private_key')
+function activePublicKey() {
+  if (!activePrivateKey) return null
+  return '0x' + fromBytes(secp256k1.publicKeyCreate(toBytes(activePrivateKey)))
+}
+
 const buttonStyle = `
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
   font-weight: 700;
@@ -22,23 +29,6 @@ const buttonStyle = `
   color: white;
   cursor: pointer;
 `
-
- // * Example encryption
-function test() {
-  try {
-    const publicKey1 = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
-    const publicKey2 = fromBytes(secp256k1.publicKeyCreate(toBytes(key2.privateKey)))
-    console.log(publicKey1, publicKey2)
-    const message = 'hello'
-    const enc = encrypt(message, key1.privateKey, publicKey2)
-    console.log(enc)
-    const dec = decrypt(enc, key2.privateKey, publicKey1)
-    console.log('message:', Buffer.from(dec).toString())
-  } catch (err) {
-    console.log('Error testing:', err)
-  }
-}
-// setTimeout(test, 2000)
 
 /**
  * Uint8Array <-> hex helpers
@@ -114,7 +104,7 @@ async function cryptweet() {
   try {
     const publicKey = await loadPublicKey(user)
     const content = tweet.slice(user.length).trim()
-    const msg = encrypt(content, key1.privateKey, publicKey)
+    const msg = encrypt(content, activePrivateKey, publicKey)
     const hexmsg = Buffer.from(msg).toString('hex')
     const prefix = '<'
     const suffix = '>'
@@ -151,6 +141,14 @@ async function cryptweet() {
     const final = chunks.map((chunk, index) => {
       return chunk.replace('0000', `${index < 10 ? '0' : ''}${index}${chunks.length < 10 ? '0' : ''}${chunks.length}`)
     })
+    const header = document.createElement('div')
+    header.setAttribute('style', `
+      padding: 10px;
+      ${buttonStyle}
+      color: black;
+    `)
+    header.innerText = 'Copy each of the following into a chain of tweets:'
+    enc.appendChild(header)
     for (const chunk of final) {
       const chunkContainer = document.createElement('div')
       chunkContainer.setAttribute('class', 'chunk')
@@ -192,7 +190,25 @@ async function cryptweet() {
   }
 }
 
-if (!document.getElementById('enc_editor')) {
+function createKey() {
+  if (activePrivateKey) {
+    //confirm action
+  }
+  function generatePrivateKey() {
+    for (;;) {
+      const key = nacl.randomBytes(32)
+      if (secp256k1.privateKeyVerify(key)) return key
+    }
+  }
+  activePrivateKey = fromBytes(generatePrivateKey())
+  console.log(activePrivateKey)
+  window.localStorage.setItem('cryptweet_private_key', activePrivateKey)
+  createSidebar()
+}
+
+function createSidebar() {
+  const editor = document.getElementById('enc_editor')
+  if (editor) editor.remove()
   const enc = document.createElement('div')
   enc.setAttribute('id', 'enc_editor')
   enc.setAttribute('style', `
@@ -209,6 +225,16 @@ if (!document.getElementById('enc_editor')) {
     padding: 2px;
   `)
   document.body.appendChild(enc)
+  const publicKeyDiv = document.createElement('div')
+  publicKeyDiv.setAttribute('style', `
+    ${buttonStyle}
+    color: black;
+    margin-bottom: 10px;
+  `)
+  const currentPublicKey = activePrivateKey ?
+    activePublicKey() :
+    'No public key, create or load an identity'
+  publicKeyDiv.innerText = currentPublicKey
   const buttonContainer = document.createElement('div')
   buttonContainer.setAttribute('style', `
     display: flex;
@@ -223,11 +249,29 @@ if (!document.getElementById('enc_editor')) {
     border-radius: 9999px;
     padding-left: 8px;
     padding-right: 8px;
+    margin-right: 4px;
+    margin-left: 4px;
   `)
   publicKeyButton.addEventListener('click', () => {
     console.log(window.ethereum)
   })
   publicKeyButton.innerText = 'Copy My Key'
+  const newKeyButton = document.createElement('div')
+  newKeyButton.setAttribute('style', `
+    height: 30px;
+    line-height: 30px;
+    background-color: green;
+    ${buttonStyle}
+    text-align: center;
+    border-radius: 9999px;
+    padding-left: 8px;
+    padding-right: 8px;
+    margin-right: 4px;
+    margin-left: 4px;
+  `)
+  newKeyButton.innerText = 'New Key'
+  newKeyButton.addEventListener('click', createKey)
+  buttonContainer.appendChild(newKeyButton)
   buttonContainer.appendChild(publicKeyButton)
   const titleSpan = document.createElement('span')
   titleSpan.innerText = 'cryptweet'
@@ -238,8 +282,10 @@ if (!document.getElementById('enc_editor')) {
     font-size: 25px;
   `)
   enc.appendChild(titleSpan)
+  enc.appendChild(publicKeyDiv)
   enc.appendChild(buttonContainer)
 }
+setTimeout(createSidebar, 200)
 
 /**
  * Every 2 seconds add buttons if needed
@@ -271,7 +317,7 @@ setInterval(() => {
     const fullData = chunks.map(c => c.data).join('').replace('<', '').replace('>', '')
     const data = Buffer.from(fullData, 'hex').toString('utf8')
     const publicKey = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
-    const decrypted = decrypt(data, key2.privateKey, publicKey)
+    const decrypted = decrypt(data, activePrivateKey, publicKey)
     if (!decrypted) continue
     const text = Buffer.from(decrypted).toString()
     const xpath = `//span[contains(text(), '${chunks[0].data}')]`
@@ -325,3 +371,20 @@ function addButton(element) {
   element.insertBefore(button, element.lastChild)
   button.addEventListener('click', cryptweet)
 }
+
+// * Example encryption
+function test() {
+  try {
+    const publicKey1 = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
+    const publicKey2 = fromBytes(secp256k1.publicKeyCreate(toBytes(key2.privateKey)))
+    console.log(publicKey1, publicKey2)
+    const message = 'hello'
+    const enc = encrypt(message, key1.privateKey, publicKey2)
+    console.log(enc)
+    const dec = decrypt(enc, key2.privateKey, publicKey1)
+    console.log('message:', Buffer.from(dec).toString())
+  } catch (err) {
+    console.log('Error testing:', err)
+  }
+}
+// setTimeout(test, 2000)
