@@ -2,18 +2,8 @@ const nacl = require('tweetnacl')
 const secp256k1 = require('secp256k1')
 const axios = require('axios')
 const generate = require('nanoid/generate')
-const Web3 = require('web3')
 const hash = require('hash.js')
-
-const key1 = {
-  privateKey: '99d6a84550b53c5b4c57907e038578497cfb274afc1bb51cca6f32e45f311c7e',
-  address: '0x4AE9DA4C61acb12772F4F2699a1e2B4d847AA61C',
-}
-
-const key2 = {
-  privateKey: 'f8d32fe360f3be243d5a7ae41c3140cfd71dc0e10deb0c09fc51260b77c11db2',
-  address: '0x30c649cDAa9E6E84E2829764a0dE83c0F92D7235',
-}
+const ethers = require('ethers')
 
 // window.localStorage.removeItem('cryptweet_private_key')
 let activePrivateKey = window.localStorage.getItem('cryptweet_private_key')
@@ -91,7 +81,7 @@ function editorElement() {
 
 async function cryptweet() {
   const enc = document.getElementById('enc_editor')
-  const children = enc.children
+  const children = [...enc.children]
   for (const child of children) {
     if (child.className === 'chunk') child.remove()
   }
@@ -120,7 +110,7 @@ async function cryptweet() {
       if (i >= hexmsg.length) break
       if (i === 0) {
         // add the user handle
-        const str = `${user} ${publicKey}${id}${prefix}`
+        const str = `${user} ${activePublicKey()}${id}${prefix}`
         i = chunkLength - str.length - suffix.length
         chunks.push(
           str + hexmsg.slice(0, i) + suffix
@@ -142,6 +132,7 @@ async function cryptweet() {
       return chunk.replace('0000', `${index < 10 ? '0' : ''}${index}${chunks.length < 10 ? '0' : ''}${chunks.length}`)
     })
     const header = document.createElement('div')
+    header.setAttribute('class', 'chunk')
     header.setAttribute('style', `
       padding: 10px;
       ${buttonStyle}
@@ -201,7 +192,6 @@ function createKey() {
     }
   }
   activePrivateKey = fromBytes(generatePrivateKey())
-  console.log(activePrivateKey)
   window.localStorage.setItem('cryptweet_private_key', activePrivateKey)
   createSidebar()
 }
@@ -214,7 +204,7 @@ function createSidebar() {
   enc.setAttribute('style', `
     position: fixed;
     right: 0px;
-    top: 0px;
+    bottom: 0px;
     min-height: 50px;
     width: 250px;
     background-color: white;
@@ -230,6 +220,9 @@ function createSidebar() {
     ${buttonStyle}
     color: black;
     margin-bottom: 10px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    max-width: 100%;
   `)
   const currentPublicKey = activePrivateKey ?
     activePublicKey() :
@@ -239,8 +232,8 @@ function createSidebar() {
   buttonContainer.setAttribute('style', `
     display: flex;
   `)
-  const publicKeyButton = document.createElement('div')
-  publicKeyButton.setAttribute('style', `
+  const saveKeyButton = document.createElement('div')
+  saveKeyButton.setAttribute('style', `
     height: 30px;
     line-height: 30px;
     background-color: purple;
@@ -252,10 +245,18 @@ function createSidebar() {
     margin-right: 4px;
     margin-left: 4px;
   `)
-  publicKeyButton.addEventListener('click', () => {
-    console.log(window.ethereum)
+  saveKeyButton.addEventListener('click', () => {
+    const wallet = new ethers.Wallet(activePrivateKey)
+    console.log(wallet)
+    const el = document.createElement('a')
+    el.setAttribute('href', `data:text/plain;charset=utf-8,${encodeURIComponent(wallet.privateKey)}`)
+    el.setAttribute('download', 'cryptweet_private_key.txt')
+    el.style.display = 'none'
+    document.body.appendChild(el)
+    el.click()
+    el.remove()
   })
-  publicKeyButton.innerText = 'Copy My Key'
+  saveKeyButton.innerText = 'Save Key'
   const newKeyButton = document.createElement('div')
   newKeyButton.setAttribute('style', `
     height: 30px;
@@ -272,7 +273,7 @@ function createSidebar() {
   newKeyButton.innerText = 'New Key'
   newKeyButton.addEventListener('click', createKey)
   buttonContainer.appendChild(newKeyButton)
-  buttonContainer.appendChild(publicKeyButton)
+  buttonContainer.appendChild(saveKeyButton)
   const titleSpan = document.createElement('span')
   titleSpan.innerText = 'cryptweet'
   titleSpan.setAttribute('style', `
@@ -374,6 +375,14 @@ function addButton(element) {
 
 // * Example encryption
 function test() {
+  const key1 = {
+    privateKey: '99d6a84550b53c5b4c57907e038578497cfb274afc1bb51cca6f32e45f311c7e',
+    address: '0x4AE9DA4C61acb12772F4F2699a1e2B4d847AA61C',
+  }
+  const key2 = {
+    privateKey: 'f8d32fe360f3be243d5a7ae41c3140cfd71dc0e10deb0c09fc51260b77c11db2',
+    address: '0x30c649cDAa9E6E84E2829764a0dE83c0F92D7235',
+  }
   try {
     const publicKey1 = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
     const publicKey2 = fromBytes(secp256k1.publicKeyCreate(toBytes(key2.privateKey)))
