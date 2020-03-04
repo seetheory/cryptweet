@@ -10,12 +10,13 @@
   },
   "dependencies": {
     "axios": "^0.19.2",
+    "hash.js": "^1.1.7",
     "nanoid": "^2.1.11",
     "openpgp": "^4.10.1",
     "puppeteer": "^2.1.1",
     "secp256k1": "^4.0.0",
     "tweetnacl": "^1.0.3",
-    "uuid": "^7.0.1"
+    "web3": "^1.2.6"
   },
   "devDependencies": {
     "webpack-cli": "^3.3.11",

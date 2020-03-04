@@ -1,8 +1,8 @@
 const nacl = require('tweetnacl')
 const secp256k1 = require('secp256k1')
 const axios = require('axios')
-const uuid = require('uuid')
 const generate = require('nanoid/generate')
+const Web3 = require('web3')
 
 const key1 = {
   privateKey: '99d6a84550b53c5b4c57907e038578497cfb274afc1bb51cca6f32e45f311c7e',
@@ -14,6 +14,21 @@ const key2 = {
   address: '0x30c649cDAa9E6E84E2829764a0dE83c0F92D7235',
 }
 
+ // * Example encryption
+function test() {
+  const publicKey1 = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
+  const publicKey2 = fromBytes(secp256k1.publicKeyCreate(toBytes(key2.privateKey)))
+  console.log(publicKey1, publicKey2)
+  const message = 'hello'
+  const enc = encrypt(message, key1.privateKey, publicKey2)
+  console.log(enc)
+  const dec = decrypt(enc, key2.privateKey, publicKey1)
+  console.log(Buffer.from(dec).toString())
+}
+
+/**
+ * Uint8Array <-> hex helpers
+ **/
 const evenPad = key => key.length % 2 === 0 ? key : `0${key}`
 const toBytes = (hex, base = 16) =>
   new Uint8Array(evenPad(hex).match(/.{1,2}/g).map(byte => parseInt(byte, base)))
@@ -22,46 +37,42 @@ const fromBytes = (bytes, base = 16) =>
     return `0${byte.toString(base)}`.slice(-2)
   }).join('')
 
-function encrypt(message, privateKey, publicKey) {
-  const secret = sharedSecret(privateKey, publicKey)
-  const nonce = nacl.randomBytes(nacl.secretbox.nonceLength)
-  // nacl.secretbox.keyLength = secret.length
-  const box = nacl.secretbox(toBytes(Buffer.from(message).toString('hex')), nonce, toBytes(secret).slice(1))
-  return JSON.stringify({
-    m: fromBytes(box),
-    n: fromBytes(nonce)
-  })
-}
-
-function decrypt(boxJson, privateKey, publicKey) {
-  const secret = sharedSecret(privateKey, publicKey)
-  const box = JSON.parse(boxJson)
-  console.log(toBytes(box.m))
-  return nacl.secretbox.open(toBytes(box.m), toBytes(box.n), toBytes(secret).slice(1))
-}
-
-function sharedSecret(privateKey, publicKey) {
-  const hashfn = (x, y) => {
-    const pubKey = new Uint8Array(33)
-    pubKey[0] = (y[31] & 1) === 0 ? 0x02 : 0x03
-    pubKey.set(x, 1)
-    return pubKey
-  }
-  const privateBytes = toBytes(privateKey)
-  const publicBytes = typeof publicKey === 'string' ? toBytes(publicKey) : publicKey
-  return secp256k1.ecdh(publicBytes, privateBytes, { hashfn }, Buffer.alloc(33)).toString('hex')
-}
-
 /**
- * Example encryption
-  const publicKey1 = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey))) const publicKey2 = fromBytes(secp256k1.publicKeyCreate(toBytes(key2.privateKey)))
-  console.log(publicKey1, publicKey2)
-  const message = 'hello'
-  const enc = encrypt(message, key1.privateKey, publicKey2)
-  console.log(enc)
-  const dec = decrypt(enc, key2.privateKey, publicKey1)
-  console.log(Buffer.from(dec).toString())
+ * Encrypt, decrypt, shared secret
  **/
+{
+  function encrypt(message, privateKey, publicKey) {
+    const secret = sharedSecret(privateKey, publicKey)
+    const nonce = nacl.randomBytes(nacl.secretbox.nonceLength)
+    // nacl.secretbox.keyLength = secret.length
+    const box = nacl.secretbox(toBytes(Buffer.from(message).toString('hex')), nonce, toBytes(secret).slice(1))
+    return JSON.stringify({
+      m: fromBytes(box),
+      n: fromBytes(nonce)
+    })
+  }
+
+  function decrypt(boxJson, privateKey, publicKey) {
+    const secret = sharedSecret(privateKey, publicKey)
+    const box = JSON.parse(boxJson)
+    return nacl.secretbox.open(toBytes(box.m), toBytes(box.n), toBytes(secret).slice(1))
+  }
+
+  function sharedSecret(privateKey, publicKey) {
+    const hashfn = (x, y) => {
+      const pubKey = new Uint8Array(33)
+      pubKey[0] = (y[31] & 1) === 0 ? 0x02 : 0x03
+      pubKey.set(x, 1)
+      return pubKey
+    }
+    const privateBytes = toBytes(privateKey)
+    const publicBytes = typeof publicKey === 'string' ?
+      toBytes(publicKey.replace('0x', '')) :
+      publicKey
+    const secret = secp256k1.ecdh(publicBytes, privateBytes, { hashfn }, Buffer.alloc(33)).toString('hex')
+    return secret
+  }
+}
 
 async function loadPublicKey(handle) {
   const { data } = await axios(`https://server.cryptweet.now.sh/publickey/${handle.replace('@', '')}`)
@@ -119,7 +130,8 @@ async function cryptweet() {
   const user = mention[0]
   try {
     const publicKey = await loadPublicKey(user)
-    const msg = encrypt(tweet, key1.privateKey, publicKey.replace('0x', ''))
+    const content = tweet.slice(user.length).trim()
+    const msg = encrypt(content, key1.privateKey, publicKey)
     const hexmsg = Buffer.from(msg).toString('hex')
     const prefix = '<'
     const suffix = '>'
@@ -127,7 +139,7 @@ async function cryptweet() {
     const chunkLength = 280
     let i = 0
     let chunkIndex = 0
-    // the id prefix will store the total chunks
+    // the id prefix will store the total chunks and current chunk index
     const id = '0000' + generate('abcdefghijklmnopqrstuvwxyz', 10)
     // Best way to chunk a binary message in tweets with the intent of
     // traversing the dom to retrieve (e.g. regex/keywords)
@@ -143,7 +155,10 @@ async function cryptweet() {
         chunkIndex++
         continue
       }
-      const newI = i + chunkLength - suffix.length - prefix.length - id.length
+      const newI = Math.min(
+        i + chunkLength - (suffix.length + prefix.length + id.length),
+        hexmsg.length
+      )
       chunks.push(
         id + prefix + hexmsg.slice(i, newI) + suffix
       )
@@ -196,19 +211,73 @@ if (!document.getElementById('enc_editor')) {
   const enc = document.createElement('div')
   enc.setAttribute('id', 'enc_editor')
   enc.setAttribute('style', `
-    position: absolute;
+    position: fixed;
     right: 0px;
-    top: 0px;
+    top: 30px;
     min-height: 50px;
-    min-width: 50px;
+    min-width: 100px;
     max-width: 250px;
     background-color: white;
   `)
   document.body.appendChild(enc)
+  const publicKeyButton = document.createElement('div')
+  publicKeyButton.setAttribute('style', `
+    position: fixed;
+    right: 0px;
+    top: 0px;
+    height: 30px;
+    background-color: purple;
+  `)
+  publicKeyButton.addEventListener('click', () => {
+    console.log(window.ethereum)
+  })
+  publicKeyButton.innerText = 'Copy My Key'
+  document.body.appendChild(publicKeyButton)
 }
 
+/**
+ * Every 2 seconds add buttons if needed
+ **/
 setInterval(() => {
   addButtons()
+}, 2000)
+
+/**
+ * Every 5 seconds look for messages to decrypt
+ **/
+setInterval(() => {
+  const composeElements = document.getElementsByClassName('public-DraftEditor-content')
+  const chunkRegex = /(\d\d)(\d\d)([a-z]{10})<([0-9a-fA-F]+)>/g
+  let match = chunkRegex.exec(document.body.innerText)
+  const chunksById = {}
+  while (match !== null) {
+    const [ full, index, total, id, data ] = match
+    if (!chunksById[id]) {
+      chunksById[id] = []
+    }
+    chunksById[id].push({ index, total, id, data, full })
+    match = chunkRegex.exec(document.body.innerText)
+  }
+  for (const id of Object.keys(chunksById)) {
+    const chunks = chunksById[id]
+    if (chunks.length !== +chunks[0].total) continue
+    chunks.sort((a, b) => a.index - b.index)
+    const fullData = chunks.map(c => c.data).join('').replace('<', '').replace('>', '')
+    const data = Buffer.from(fullData, 'hex').toString('utf8')
+    const publicKey = fromBytes(secp256k1.publicKeyCreate(toBytes(key1.privateKey)))
+    const decrypted = decrypt(data, key2.privateKey, publicKey)
+    if (!decrypted) continue
+    const text = Buffer.from(decrypted).toString()
+    const xpath = `//span[contains(text(), '${chunks[0].data}')]`
+    let editing = false
+    for (const e of composeElements) {
+      if (e.contains(element)) editing = true
+    }
+    // don't modify if composing a tweet
+    if (editing) continue
+    const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue
+    element.innerText = ` DECRYPTED: ` + element.innerText.replace(chunks[0].full, text)
+  }
 }, 2000)
 
 function addButtons() {
