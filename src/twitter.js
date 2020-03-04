@@ -97,35 +97,6 @@ function setCurrentTweet(text) {
   editor.innerText = text
 }
 
-function addButton(element) {
-  const button = document.createElement('div')
-  button.setAttribute('class', 'cryptweet_encrypt_button')
-  button.setAttribute('style', `
-    background-color: green;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
-    font-weight: 700;
-    font-size: 15px;
-    height: 39px;
-    min-width: 62.8px;
-    color: white;
-    display: flex;
-    border-radius: 9999px;
-    cursor: pointer;
-    align-items: center;
-    justify-content: center;
-    margin-top: 10px;
-  `)
-  const textContainer = document.createElement('div')
-  textContainer.setAttribute('style', `
-    display: flex;
-    margin: 4px;
-  `)
-  textContainer.innerText = 'Crypt'
-  button.appendChild(textContainer)
-  element.appendChild(button)
-  button.addEventListener('click', cryptweet)
-}
-
 async function cryptweet() {
   const enc = document.getElementById('enc_editor')
   while (enc.lastChild) enc.lastChild.remove()
@@ -276,13 +247,13 @@ setInterval(() => {
     if (!decrypted) continue
     const text = Buffer.from(decrypted).toString()
     const xpath = `//span[contains(text(), '${chunks[0].data}')]`
+    const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue
     let editing = false
     for (const e of composeElements) {
       if (e.contains(element)) editing = true
     }
     // don't modify if composing a tweet
     if (editing) continue
-    const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue
     element.innerText = ` DECRYPTED: ` + element.innerText.replace(chunks[0].full, text)
   }
 }, 2000)
@@ -298,4 +269,33 @@ function addButtons() {
       addButton(field)
     }
   })()
+}
+
+function addButton(element) {
+  const button = document.createElement('div')
+  button.setAttribute('class', 'cryptweet_encrypt_button')
+  button.setAttribute('style', `
+    background-color: green;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    height: 39px;
+    min-width: 62.8px;
+    color: white;
+    display: flex;
+    border-radius: 9999px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+  `)
+  const textContainer = document.createElement('div')
+  textContainer.setAttribute('style', `
+    display: flex;
+    margin: 4px;
+  `)
+  textContainer.innerText = 'Crypt'
+  button.appendChild(textContainer)
+  element.insertBefore(button, element.lastChild)
+  button.addEventListener('click', cryptweet)
 }
